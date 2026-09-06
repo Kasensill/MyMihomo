@@ -1,0 +1,84 @@
+# =========================
+# MyMihomo 配置模板
+# =========================
+
+secret: github.com/Alvin9999-newpac/fanqiang
+
+mixed-port: 7890
+allow-lan: false
+log-level: info
+
+external-controller: 127.0.0.1:9090
+
+# =========================
+# 节点
+# =========================
+# 这里暂时保留占位符
+# 后续由自动化脚本从 Official 中读取
+# server / port / auth-str / sni 等参数
+
+proxies:
+  - name: AUTO_NAME
+    type: AUTO_TYPE
+    server: AUTO_SERVER
+    port: AUTO_PORT
+    auth-str: AUTO_AUTH
+    sni: AUTO_SNI
+    skip-cert-verify: AUTO_VERIFY
+    alpn:
+      - AUTO_ALPN
+    protocol: AUTO_PROTOCOL
+    up: "AUTO_UP"
+    down: "AUTO_DOWN"
+
+# =========================
+# 代理组
+# =========================
+
+proxy-groups:
+  - name: 🚀 节点选择
+    type: select
+    proxies:
+      - AUTO_NODE
+
+# =========================
+# TUN
+# =========================
+
+tun:
+  enable: true
+  stack: mixed
+  auto-route: true
+  auto-detect-interface: true
+  dns-hijack: []
+  route-exclude-address:
+    - AUTO_ROUTE_EXCLUDE
+
+# =========================
+# DNS
+# =========================
+
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+
+  nameserver:
+    - https://1.1.1.1/dns-query#🚀 节点选择
+    - https://8.8.8.8/dns-query#🚀 节点选择
+
+  fallback:
+    - https://1.1.1.1/dns-query#🚀 节点选择
+    - https://8.8.8.8/dns-query#🚀 节点选择
+
+  fallback-filter:
+    geoip: false
+    ipcidr:
+      - 240.0.0.0/4
+      - 0.0.0.0/32
+
+# =========================
+# 规则
+# =========================
+
+rules:
+  - MATCH,🚀 节点选择
