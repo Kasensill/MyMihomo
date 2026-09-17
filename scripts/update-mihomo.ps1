@@ -8,6 +8,10 @@ Write-Host " MyMihomo Update"
 Write-Host "=========================================="
 Write-Host ""
 
+$Promoted = $false
+$BackupFile = $null
+$WasRunning = $false
+$StartedProcess = $null
 
 try {
 
@@ -65,6 +69,7 @@ try {
 
     if ($Mihomo) {
 
+        $WasRunning = $true
         Write-Host "Mihomo is currently running. PID = $($Mihomo.Id)"
     }
     else {
@@ -221,6 +226,7 @@ try {
         -ErrorAction Stop
 
 
+    $Promoted = $true
     Write-Host "Candidate config promoted to active config."
     Write-Host ""
 
@@ -265,9 +271,10 @@ try {
     Write-Host ""
 
 
-    Start-Process `
+    $StartedProcess = Start-Process `
         -FilePath $MihomoBinary `
         -ArgumentList "-d `"$ConfigDir`"" `
+        -PassThru `
         -ErrorAction Stop
 
 
@@ -290,9 +297,7 @@ try {
         Start-Sleep -Seconds 1
 
 
-        $NewMihomo = Get-Process `
-            -Name "mihomo-windows-amd64-compatible" `
-            -ErrorAction SilentlyContinue
+        $NewMihomo = Get-Process -Id $StartedProcess.Id -ErrorAction SilentlyContinue
 
 
         $Port7890 = Get-NetTCPConnection `
@@ -307,7 +312,10 @@ try {
             -ErrorAction SilentlyContinue
 
 
-        if ($NewMihomo -and $Port7890 -and $Port9090) {
+        $Port7890Owned = @($Port7890 | Where-Object OwningProcess -eq $StartedProcess.Id)
+        $Port9090Owned = @($Port9090 | Where-Object OwningProcess -eq $StartedProcess.Id)
+
+        if ($NewMihomo -and $Port7890Owned -and $Port9090Owned) {
 
             $Ready = $true
 
@@ -357,28 +365,9 @@ try {
         Write-Host ""
 
 
-        try {
-
-            & "$PSScriptRoot\rollback.ps1"
-        }
-        catch {
-
-            Write-Host ""
-            Write-Host "ERROR: Automatic rollback failed."
-            Write-Host ""
-            Write-Host $_.Exception.Message
-            Write-Host ""
-
-            throw
-        }
-
-
-        Write-Host ""
-        Write-Host "Automatic rollback completed successfully."
-        Write-Host ""
-
-
-        throw "Update failed. System has been rolled back."
+        # The outer catch block owns restoration so every post-promotion
+        # failure follows the same exact-backup recovery path.
+        throw "New Mihomo health check failed. Automatic restoration required."
     }
 
 
@@ -426,6 +415,27 @@ try {
 }
 catch {
 
+    $OriginalError = $_.Exception.Message
+
+    if ($Promoted -and $BackupFile -and (Test-Path -LiteralPath $BackupFile)) {
+        Write-Host "Update failed after promotion. Restoring the exact pre-update backup..."
+        try {
+            if ($StartedProcess) {
+                Stop-Process -Id $StartedProcess.Id -Force -ErrorAction SilentlyContinue
+            }
+            Copy-Item -LiteralPath $BackupFile -Destination $CurrentConfig -Force -ErrorAction Stop
+            & $MihomoBinary -t -d $ConfigDir
+            if ($LASTEXITCODE -ne 0) { throw "Restored configuration failed validation." }
+            if ($WasRunning) {
+                Start-Process -FilePath $MihomoBinary -ArgumentList "-d `"$ConfigDir`"" -ErrorAction Stop | Out-Null
+            }
+            Write-Host "Pre-update configuration restored successfully."
+        }
+        catch {
+            Write-Host "CRITICAL: Automatic restoration failed: $($_.Exception.Message)"
+        }
+    }
+
     Write-Host ""
     Write-Host "=========================================="
     Write-Host " MyMihomo update FAILED"
@@ -433,7 +443,7 @@ catch {
     Write-Host ""
 
     Write-Host "Error:"
-    Write-Host $_.Exception.Message
+    Write-Host $OriginalError
     Write-Host ""
 
     throw

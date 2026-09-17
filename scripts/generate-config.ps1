@@ -1,5 +1,6 @@
 param (
-    [string]$ConfigFile = ""
+    [string]$ConfigFile = "",
+    [string]$NodeName = ""
 )
 
 
@@ -25,15 +26,7 @@ if ([string]::IsNullOrWhiteSpace($ConfigFile)) {
 # 提取节点
 # ==========================================
 
-$Node = Get-HysteriaNode $ConfigFile
-
-
-if ([string]::IsNullOrWhiteSpace($Node.Server)) {
-
-    Write-Host ""
-    Write-Host "ERROR: Hysteria node was not found in official config."
-    exit 1
-}
+$Node = Get-HysteriaNode -ConfigFile $ConfigFile -NodeName $NodeName
 
 
 # ==========================================
@@ -50,6 +43,7 @@ $RouteExclude = Get-RouteExcludeAddress $Node.Server
 $TemplateFile = Join-Path $PSScriptRoot "..\config\template.yaml"
 
 $OutputFile = Join-Path $PSScriptRoot "..\config\config-new.yaml"
+$TemporaryFile = "$OutputFile.tmp"
 
 
 # ==========================================
@@ -82,7 +76,15 @@ $Content = $Content.Replace("AUTO_NODE", $Node.Name)
 # 写入候选配置
 # ==========================================
 
-$Content | Set-Content $OutputFile -Encoding UTF8
+try {
+    $Content | Set-Content $TemporaryFile -Encoding UTF8 -ErrorAction Stop
+    Copy-Item -LiteralPath $TemporaryFile -Destination $OutputFile -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $TemporaryFile -Force -ErrorAction Stop
+}
+catch {
+    Remove-Item -LiteralPath $TemporaryFile -Force -ErrorAction SilentlyContinue
+    throw "Unable to write candidate config '$OutputFile': $($_.Exception.Message)"
+}
 
 
 # ==========================================

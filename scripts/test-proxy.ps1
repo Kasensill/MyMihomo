@@ -1,38 +1,31 @@
-Write-Host ""
-Write-Host "Testing proxy connectivity..."
-Write-Host ""
+param (
+    [int]$Attempts = 3,
+    [int]$InitialDelaySeconds = 3
+)
 
-$ProxyTestSuccess = $false
+if ($InitialDelaySeconds -gt 0) { Start-Sleep -Seconds $InitialDelaySeconds }
 
-# 等待 Mihomo 启动并稳定
-Start-Sleep -Seconds 20
+$Targets = @(
+    # HTTP endpoints avoid depending on the Windows account's TLS certificate
+    # store; Mihomo still transports the foreign request through the proxy.
+    @{ Name = 'foreign'; Url = 'http://www.gstatic.com/generate_204' },
+    @{ Name = 'domestic'; Url = 'http://www.baidu.com/' }
+)
 
-for ($i = 1; $i -le 3; $i++) {
-
-    Write-Host "Proxy test attempt $i/3..."
-
-    curl.exe -4 --connect-timeout 15 `
-        -x http://127.0.0.1:7890 `
-        https://www.google.com -I
-
-    if ($LASTEXITCODE -eq 0) {
-        $ProxyTestSuccess = $true
-        break
+foreach ($Target in $Targets) {
+    $Success = $false
+    for ($Attempt = 1; $Attempt -le $Attempts; $Attempt++) {
+        Write-Host "Testing $($Target.Name) connectivity ($Attempt/$Attempts)..."
+        curl.exe -4 --fail --silent --show-error --output NUL --connect-timeout 10 --max-time 20 `
+            -x http://127.0.0.1:7890 $Target.Url
+        if ($LASTEXITCODE -eq 0) { $Success = $true; break }
+        if ($Attempt -lt $Attempts) { Start-Sleep -Seconds 2 }
     }
-
-    if ($i -lt 3) {
-        Write-Host "Proxy test failed. Retrying in 2 seconds..."
-        Start-Sleep -Seconds 2
+    if (-not $Success) {
+        Write-Error "$($Target.Name) connectivity test failed."
+        exit 1
     }
 }
 
-if ($ProxyTestSuccess) {
-
-    Write-Host ""
-    Write-Host "Proxy connectivity test successful."
-    exit 0
-}
-
-Write-Host ""
-Write-Host "ERROR: Proxy connectivity test failed after 3 attempts."
-exit 1
+Write-Host "Proxy and direct connectivity tests succeeded."
+exit 0

@@ -1,4 +1,12 @@
-$ConfigFile = "E:\software\VPN\Chrome135_AllNew_2026.7.15\clash.meta\config.yaml"
+. "$PSScriptRoot\extract-node.ps1"
+
+$Settings = Get-MyMihomoSettings
+$ConfigFile = $Settings.OfficialConfigPath
+
+if ([string]::IsNullOrWhiteSpace($ConfigFile) -or -not (Test-Path $ConfigFile)) {
+    Write-Error "Official config path is not configured or does not exist."
+    exit 1
+}
 
 $Lines = Get-Content $ConfigFile -Encoding UTF8
 
@@ -15,7 +23,7 @@ for ($i = 0; $i -lt $Lines.Count; $i++) {
     }
 
     if ($Line -match '^\s+auth-str:\s*(.+)$') {
-        Write-Host "AUTH   = $($Matches[1])"
+        Write-Host "AUTH   = <redacted>"
     }
 
     if ($Line -match '^\s+sni:\s*(.+)$') {

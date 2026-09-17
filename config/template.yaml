@@ -7,6 +7,7 @@ secret: github.com/Alvin9999-newpac/fanqiang
 mixed-port: 7890
 allow-lan: false
 log-level: info
+find-process-mode: always
 
 external-controller: 127.0.0.1:9090
 
@@ -50,7 +51,9 @@ tun:
   stack: mixed
   auto-route: true
   auto-detect-interface: true
-  dns-hijack: []
+  dns-hijack:
+    - any:53
+    - tcp://any:53
   route-exclude-address:
     - AUTO_ROUTE_EXCLUDE
 
@@ -61,24 +64,107 @@ tun:
 dns:
   enable: true
   enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  use-hosts: true
+  use-system-hosts: true
+  respect-rules: true
 
+  # 用纯 IP DNS 完成 DoH 域名和代理节点域名的首次解析，避免启动死锁。
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+
+  # 未命中国内规则集的域名默认通过代理查询国外 DNS。
   nameserver:
     - https://1.1.1.1/dns-query#🚀 节点选择
     - https://8.8.8.8/dns-query#🚀 节点选择
 
-  fallback:
-    - https://1.1.1.1/dns-query#🚀 节点选择
-    - https://8.8.8.8/dns-query#🚀 节点选择
+  # 代理服务器域名必须先通过直连 DNS 解析，不能依赖代理本身。
+  proxy-server-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
 
-  fallback-filter:
-    geoip: false
-    ipcidr:
-      - 240.0.0.0/4
-      - 0.0.0.0/32
+  # DIRECT 出口重新使用国内 DNS，降低国内 CDN 误解析概率。
+  direct-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+  direct-nameserver-follow-policy: true
+
+  nameserver-policy:
+    "rule-set:private-domain,cn-domain":
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "localhost.ptlogin2.qq.com"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+
+# =========================
+# 社区规则订阅
+# =========================
+
+rule-providers:
+  private-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    path: ./rules/private-domain.mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs
+    interval: 86400
+    proxy: 🚀 节点选择
+
+  private-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    path: ./rules/private-ip.mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs
+    interval: 86400
+    proxy: 🚀 节点选择
+
+  cn-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    path: ./rules/cn-domain.mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    interval: 86400
+    proxy: 🚀 节点选择
+
+  cn-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    path: ./rules/cn-ip.mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    interval: 86400
+    proxy: 🚀 节点选择
 
 # =========================
 # 规则
 # =========================
 
 rules:
+  # Codex / ChatGPT 桌面端最高优先级：不参与国内外判断，直接代理。
+  - PROCESS-NAME,ChatGPT.exe,🚀 节点选择
+  - PROCESS-NAME-WILDCARD,codex*.exe,🚀 节点选择
+
+  # 进程信息不可用时的域名兜底，仍优先于所有社区规则。
+  - DOMAIN-SUFFIX,chatgpt.com,🚀 节点选择
+  - DOMAIN-SUFFIX,openai.com,🚀 节点选择
+  - DOMAIN-SUFFIX,oaistatic.com,🚀 节点选择
+  - DOMAIN-SUFFIX,oaiusercontent.com,🚀 节点选择
+
+  # 其他自定义覆盖规则放在这里，始终优先于社区规则。
+  # 示例：
+  # - DOMAIN-SUFFIX,example.cn,DIRECT
+  # - DOMAIN-SUFFIX,example.com,🚀 节点选择
+
+  - RULE-SET,private-domain,DIRECT
+  - RULE-SET,private-ip,DIRECT,no-resolve
+  - RULE-SET,cn-domain,DIRECT
+  - RULE-SET,cn-ip,DIRECT,no-resolve
   - MATCH,🚀 节点选择

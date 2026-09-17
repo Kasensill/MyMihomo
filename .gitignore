@@ -12,6 +12,10 @@ config/config-new.yaml
 config/official-latest.yaml
 config/settings.yaml
 
+# Root-level Mihomo runtime files (legacy/accidental working directory)
+/config.yaml
+/cache.db
+
 
 # ------------------------------------------
 # Mihomo runtime data
@@ -19,6 +23,10 @@ config/settings.yaml
 
 config/cache.db
 config/candidate-test/
+config/rules/
+config/*.metadb
+config/*.mmdb
+config/*.db
 
 
 # ------------------------------------------
@@ -26,6 +34,7 @@ config/candidate-test/
 # ------------------------------------------
 
 config/backup/
+config/config-backup-*.yaml
 
 
 # ------------------------------------------

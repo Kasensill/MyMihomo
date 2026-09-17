@@ -14,6 +14,7 @@ if ([string]::IsNullOrWhiteSpace($Settings.OfficialConfigUrl)) {
 $Url = $Settings.OfficialConfigUrl
 
 $OutputFile = Join-Path $PSScriptRoot "..\config\official-latest.yaml"
+$TemporaryFile = "$OutputFile.tmp"
 
 
 Write-Host ""
@@ -23,7 +24,7 @@ Write-Host "=========================================="
 Write-Host ""
 
 Write-Host "URL:"
-Write-Host $Url
+Write-Host "<configured in private settings.yaml>"
 Write-Host ""
 
 Write-Host "Output:"
@@ -35,11 +36,14 @@ try {
 
     Invoke-WebRequest `
         -Uri $Url `
-        -OutFile $OutputFile `
+        -OutFile $TemporaryFile `
         -UseBasicParsing
 
 
-    if (Test-Path $OutputFile) {
+    if ((Test-Path $TemporaryFile) -and (Get-Item $TemporaryFile).Length -gt 0) {
+
+        Copy-Item -LiteralPath $TemporaryFile -Destination $OutputFile -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $TemporaryFile -Force
 
         Write-Host "Download successful."
         Write-Host ""
@@ -58,6 +62,8 @@ try {
 }
 
 catch {
+
+    Remove-Item -LiteralPath $TemporaryFile -Force -ErrorAction SilentlyContinue
 
     Write-Host "Download failed."
     Write-Host ""

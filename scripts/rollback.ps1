@@ -88,6 +88,16 @@ try {
     Write-Host $LatestBackup.FullName
     Write-Host ""
 
+    # Validate the selected backup before stopping the working process.
+    $ValidationDir = Join-Path $ConfigDir "candidate-test\rollback"
+    $ValidationConfig = Join-Path $ValidationDir "config.yaml"
+    New-Item -ItemType Directory -Path $ValidationDir -Force -ErrorAction Stop | Out-Null
+    Copy-Item -LiteralPath $LatestBackup.FullName -Destination $ValidationConfig -Force -ErrorAction Stop
+    & $MihomoBinary -t -d $ValidationDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "Selected backup failed validation; running Mihomo was not stopped."
+    }
+
 
     # ==========================================
     # 停止当前 Mihomo
@@ -164,9 +174,10 @@ try {
     Write-Host "Starting Mihomo..."
 
 
-    Start-Process `
+    $StartedProcess = Start-Process `
         -FilePath $MihomoBinary `
         -ArgumentList "-d `"$ConfigDir`"" `
+        -PassThru `
         -ErrorAction Stop
 
 
@@ -186,9 +197,7 @@ try {
         Start-Sleep -Seconds 1
 
 
-        $NewMihomo = Get-Process `
-            -Name "mihomo-windows-amd64-compatible" `
-            -ErrorAction SilentlyContinue
+        $NewMihomo = Get-Process -Id $StartedProcess.Id -ErrorAction SilentlyContinue
 
 
         $Port7890 = Get-NetTCPConnection `
@@ -203,7 +212,10 @@ try {
             -ErrorAction SilentlyContinue
 
 
-        if ($NewMihomo -and $Port7890 -and $Port9090) {
+        $Port7890Owned = @($Port7890 | Where-Object OwningProcess -eq $StartedProcess.Id)
+        $Port9090Owned = @($Port9090 | Where-Object OwningProcess -eq $StartedProcess.Id)
+
+        if ($NewMihomo -and $Port7890Owned -and $Port9090Owned) {
 
             $Ready = $true
 
